@@ -97,6 +97,7 @@ if __name__ == "__main__":
     # DİKKAT: Dosya yolunuzu buraya girin (Baştaki 'r' harfini silmeyin)
     dosya_yolu = r'"C:\Users\User\OneDrive - gazi.edu.tr\Belgeler\Datasets\issues.parquet"'
     
+    
     # Adım 1: Oku
     df_ham = veri_oku(dosya_yolu, satir_sayisi=10000)
     
