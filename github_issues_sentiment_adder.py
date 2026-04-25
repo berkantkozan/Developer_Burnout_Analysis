@@ -95,7 +95,8 @@ def duygulari_analiz_et(df_temiz, islenecek_satir=100):
 # ==========================================
 if __name__ == "__main__":
     # DİKKAT: Dosya yolunuzu buraya girin (Baştaki 'r' harfini silmeyin)
-    dosya_yolu = r'"C:\Users\User\OneDrive - gazi.edu.tr\Belgeler\Datasets\issues.parquet"'
+    # "C:\Users\User\OneDrive - gazi.edu.tr\Belgeler\Datasets\issues.parquet"
+    dosya_yolu = r'C:\Users\User\OneDrive - gazi.edu.tr\Belgeler\Datasets\issues.parquet'
     
     
     # Adım 1: Oku
