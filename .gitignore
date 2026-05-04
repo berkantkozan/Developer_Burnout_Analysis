@@ -1,0 +1,16 @@
+# Kütüphaneler
+node_modules/
+.venv/
+venv/
+
+# Büyük Model Dosyaları ve Klasörleri
+bert-base-uncased-burnout/
+best_burnout_roberta/
+roberta_burnout_model/
+
+# Veri setleri (Eğer çok büyüklerse)
+*.csv
+
+# Python bytecode
+__pycache__/
+*.pyc
