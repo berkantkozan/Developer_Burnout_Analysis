@@ -51,7 +51,7 @@ export default function App() {
           Otonom Ekip Dinamiği ve Burnout Analizi
         </h1>
         <p className="text-lg text-slate-500">
-          Doğal Dil İşleme tabanlı sprint stres yükü raporu. Toplam analiz edilen kayıt: <span className="font-semibold">10.000 metin</span>
+          Doğal Dil İşleme tabanlı stres yükü raporu.
         </p>
       </header>
 
