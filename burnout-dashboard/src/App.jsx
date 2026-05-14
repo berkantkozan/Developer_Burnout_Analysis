@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, ResponsiveContainer, LineChart, Line, ReferenceLine
@@ -10,31 +11,86 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('genel');
   const [viewMetric, setViewMetric] = useState('burnout'); // 'burnout' veya 'commit'
   const [threshold, setThreshold] = useState(3.0);
+  const [chartData, setChartData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [analysis, setAnalysis] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/get-dashboard-data');
+        const data = await response.json();
+        setChartData(data.zaman_serisi);
+      } catch (error) {
+        console.error("Veri çekme hatası:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Tıklama ile Analiz Başlatan Fonksiyon
+  const handleChartClick = async (data) => {
+    if (!data || !data.activePayload) return;
+    
+    const payload = data.activePayload[0].payload;
+
+    // Sadece eşiği geçen (kritik) noktalarda analiz yap
+    if (payload.burnoutRisk >= threshold) {
+      setIsAnalyzing(true);
+      setAnalysis(null); // Eski analizi temizle
+
+      try {
+        const response = await fetch('http://127.0.0.1:8000/analyze-weekly-burnout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        messages: payload.criticalMessages // ANAHTAR ISMI 'messages' OLMALI
+    })
+});
+        const result = await response.json();
+        setAnalysis(result.analysis);
+      } catch (error) {
+        setAnalysis("Hata: LLM servisine ulaşılamadı. Lütfen backend'i kontrol edin.");
+      } finally {
+        setIsAnalyzing(false);
+      }
+    }
+  };
 
   // özet istatistik hesaplayıcısı
   const stats = useMemo(() => {
+    if (chartData.length === 0) return { avgRisk: 0, totalCommits: 0, warningWeeks: 0 };
+    
     let totalRisk = 0;
     let totalCommits = 0;
     let warningWeeks = 0;
-    ZAMAN_SERISI.forEach(item => {
+    
+    chartData.forEach(item => {
       totalRisk += item.burnoutRisk;
       totalCommits += item.commitCount;
       if (item.burnoutRisk >= threshold) warningWeeks++;
     });
+
     return {
-      avgRisk: (totalRisk / ZAMAN_SERISI.length).toFixed(1),
+      avgRisk: (totalRisk / chartData.length).toFixed(1),
       totalCommits,
       warningWeeks
     };
-  }, [threshold]);
+  }, [chartData, threshold]);
 
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-screen font-bold">Veriler Analiz Ediliyor...</div>;
+  }
   // Eşiği aşan noktaları kırmızı yapan fonksiyon
   const renderCustomDot = (props) => {
     const { cx, cy, payload } = props;
     const isCritical = payload.burnoutRisk >= threshold;
     return (
       <circle 
-        key={`dot-${payload.date}`} cx={cx} cy={cy} 
+        key={`dot-${payload.author_time}`} cx={cx} cy={cy} 
         r={isCritical ? 6 : 4} 
         stroke={isCritical ? "#e11d48" : "#4f46e5"} // Tailwind rose-600 ve indigo-600
         strokeWidth={2} 
@@ -185,7 +241,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-600">Uyarı Eşiği:</label>
                 <input 
-                  type="range" min="1.0" max="6.0" step="0.1" 
+                  type="range" min="1.0" max="100.0" step="0.1" 
                   value={threshold} 
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
                   className="w-48 accent-rose-500"
@@ -203,7 +259,7 @@ export default function App() {
             </h2>
             <ResponsiveContainer width="100%" height={400}>
               {viewMetric === 'burnout' ? (
-                <LineChart data={ZAMAN_SERISI} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: 'pointer' }} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="date" stroke="#64748b" tick={{fontSize: 13}} />
                   <YAxis stroke="#64748b" domain={[0, 'dataMax + 1']} unit="%" tick={{fontSize: 13}} />
@@ -217,7 +273,7 @@ export default function App() {
                   />
                 </LineChart>
               ) : (
-                <BarChart data={ZAMAN_SERISI} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="date" stroke="#64748b" tick={{fontSize: 13}} />
                   <YAxis stroke="#64748b" tick={{fontSize: 13}} />
@@ -227,6 +283,32 @@ export default function App() {
                 </BarChart>
               )}
             </ResponsiveContainer>
+            {(isAnalyzing || analysis) && (
+  <div className={`mt-8 p-6 rounded-2xl border transition-all duration-500 ${
+    isAnalyzing ? 'bg-slate-50 border-slate-200 animate-pulse' : 'bg-indigo-50 border-indigo-100 shadow-inner'
+  }`}>
+    <div className="flex items-center gap-3 mb-4">
+      <div className={`w-3 h-3 rounded-full ${isAnalyzing ? 'bg-amber-400' : 'bg-indigo-500'}`}></div>
+      <h3 className="text-lg font-bold text-slate-800">
+        {isAnalyzing 
+          ? 'Yapay Zeka Analiz Ediyor...' 
+          : 'YAPAY ZEKA ANALİZ SONUÇLARI'
+        }
+      </h3>
+    </div>
+    
+    <div className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+      {isAnalyzing ? (
+        <div className="space-y-2">
+          <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+        </div>
+      ) : (
+        <ReactMarkdown>{analysis}</ReactMarkdown>
+      )}
+    </div>
+  </div>
+)}
           </div>
         )}
 

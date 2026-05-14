@@ -6,6 +6,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import classification_report, f1_score, recall_score
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, DataCollatorWithPadding
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+import torch.nn.functional as F
+
 
 # 1. Veriyi Yükle ve Etiketleri Sayısallaştır
 df = pd.read_csv("dengeli_commit_verisi.csv")
@@ -18,9 +23,9 @@ df['label'] = df['ana_kategori'].map(label_dict)
 texts = df['temiz_metin'].astype(str).tolist()
 labels = df['label'].tolist()
 
-# Train (%80), Val (%10), Test (%10) Ayrımı
+# Train (%70), Val (%15), Test (%15) Ayrımı
 train_texts, temp_texts, train_labels, temp_labels = train_test_split(
-    texts, labels, test_size=0.2, random_state=42, stratify=labels
+    texts, labels, test_size=0.3, random_state=42, stratify=labels
 )
 val_texts, test_texts, val_labels, test_labels = train_test_split(
     temp_texts, temp_labels, test_size=0.5, random_state=42, stratify=temp_labels
@@ -116,13 +121,64 @@ trainer = WeightedTrainer(
 print("Model Eğitimi Başlıyor...")
 trainer.train()
 
-# 9. Test Setinde Nihai Değerlendirme
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+import torch.nn.functional as F
+
+# 9. Test Setinde Değerlendirme ve Veri Hazırlığı
 print("Test Setinde Değerlendirme Yapılıyor...")
 test_results = trainer.predict(test_dataset)
-preds = test_results.predictions.argmax(-1)
-print(classification_report(test_labels, preds, target_names=['Nötr', 'Negatif', 'Pozitif']))
+logits = torch.tensor(test_results.predictions)
+probs = F.softmax(logits, dim=-1) # Logitleri olasılığa dönüştür
+preds = torch.argmax(probs, dim=-1).numpy()
+max_probs = torch.max(probs, dim=-1).values.numpy() # Güven skorları
 
-# 10. Modeli Kaydet
+# Etiketlerin geri dönüşümü (sayısaldan metne)
+reverse_label_dict = {v: k for k, v in label_dict.items()}
+
+# 10. Sonuçları CSV Olarak Kaydet (RAG/LLM Katmanı İçin Girdi)
+# Not: Orijinal df'den 'modül' bilgisi varsa buraya ekleyebilirsin
+results_df = pd.DataFrame({
+    'text': test_texts,
+    'true_label': [reverse_label_dict[l] for l in test_labels],
+    'predicted_label': [reverse_label_dict[p] for p in preds],
+    'confidence_score': max_probs
+})
+
+# Sadece stresli ve modelin emin olduğu (örn: >0.80) verileri RAG için ayrı kaydedelim
+results_df.to_csv("roberta_analiz_sonuclari.csv", index=False, encoding='utf-8-sig')
+print("Tüm sonuçlar 'roberta_analiz_sonuclari.csv' olarak kaydedildi.")
+
+# 11. Görselleştirme: Confusion Matrix
+def plot_confusion_matrix(y_true, y_pred, labels):
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=labels, yticklabels=labels)
+    plt.title('Geliştirici Tükenmişlik Analizi - Karmaşıklık Matrisi')
+    plt.ylabel('Gerçek Etiket')
+    plt.xlabel('Tahmin Edilen Etiket')
+    plt.savefig('confusion_matrix.png')
+    plt.show()
+
+print("Görseller oluşturuluyor...")
+plot_confusion_matrix(test_labels, preds, ['Nötr', 'Negatif', 'Pozitif'])
+
+# 12. Görselleştirme: Sınıflandırma Raporu Tablosu
+report = classification_report(test_labels, preds, 
+                               target_names=['Nötr', 'Negatif', 'Pozitif'], 
+                               output_dict=True)
+report_df = pd.DataFrame(report).transpose()
+
+# Raporu görsel tablo olarak kaydet
+plt.figure(figsize=(12, 6))
+sns.heatmap(report_df.iloc[:-1, :-1], annot=True, cmap='YlGnBu', cbar=False)
+plt.title('Model Başarı Metrikleri (Precision, Recall, F1)')
+plt.savefig('classification_report.png')
+plt.show()
+
+# 13. Modeli Kaydet
 trainer.save_model("./best_burnout_roberta")
 tokenizer.save_pretrained("./best_burnout_roberta")
-print("En iyi model başarıyla kaydedildi!")
+print("İşlem tamamlandı. Görseller ve CSV hazır!")
