@@ -57,7 +57,7 @@ async def analyze_weekly(request: WeeklyAnalysisRequest):
     {
         "role": "user", 
         "content": f"""
-Bir proje yöneticisi olarak aşağıdaki stresli geliştirici mesajlarını analiz et. 
+Bir proje yöneticisi olarak aşağıdaki stresli geliştirici mesajlarını analiz et ve 
 
 MESAJLAR:
 {context}
@@ -66,7 +66,7 @@ ANALİZ KURALLARI:
 - Yazım hatalarını düzelt (reféns -> referans).
 - Duygusal durumu (stres düzeyi) değerlendir.
 - Teknik sorunu tam olarak tanımla.
--teknik çözüm önerileri sun.
+-proje yöneticilerine spesifik, uygulanabilir ve profesyonel yönetim stratejileri öner.
 
 RAPOR FORMATI (BU FORMATI KULLAN):
 # 📊 Haftalık Teknik Risk Analizi /n

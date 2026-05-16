@@ -241,7 +241,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <label className="text-sm font-bold text-slate-600">Uyarı Eşiği:</label>
                 <input 
-                  type="range" min="1.0" max="100.0" step="0.1" 
+                  type="range" min="1.0" max="100.0" step="1.0" 
                   value={threshold} 
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
                   className="w-48 accent-rose-500"
